@@ -1,5 +1,24 @@
 import { Book, ReadingList, Review, Recommendation } from '@/types';
 import { mockBooks, mockReadingLists } from './mockData';
+import { fetchAuthSession } from 'aws-amplify/auth';
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  } catch {
+    return {
+      'Content-Type': 'application/json',
+    };
+  }
+}
 
 /**
  * ============================================================================
@@ -21,17 +40,17 @@ import { mockBooks, mockReadingLists } from './mockData';
  * IMPLEMENTATION CHECKLIST:
  * ============================================================================
  *
- * [ ] Week 1: Set up AWS account and first Lambda function
- * [ ] Week 2: Create DynamoDB tables (Books, ReadingLists)
- * [ ] Week 2: Deploy Lambda functions for Books API
- * [ ] Week 2: Deploy Lambda functions for Reading Lists API
- * [ ] Week 2: Set VITE_API_BASE_URL in .env file
- * [ ] Week 3: Set up Cognito User Pool
- * [ ] Week 3: Install aws-amplify: npm install aws-amplify
- * [ ] Week 3: Configure Amplify in src/main.tsx
- * [ ] Week 3: Update AuthContext with Cognito functions
- * [ ] Week 3: Implement getAuthHeaders() function below
- * [ ] Week 3: Add Cognito authorizer to API Gateway
+ * [+] Week 1: Set up AWS account and first Lambda function
+ * [+] Week 2: Create DynamoDB tables (Books, ReadingLists)
+ * [+] Week 2: Deploy Lambda functions for Books API
+ * [+] Week 2: Deploy Lambda functions for Reading Lists API
+ * [+] Week 2: Set VITE_API_BASE_URL in .env file
+ * [+] Week 3: Set up Cognito User Pool
+ * [+] Week 3: Install aws-amplify: npm install aws-amplify
+ * [+] Week 3: Configure Amplify in src/main.tsx
+ * [+] Week 3: Update AuthContext with Cognito functions
+ * [+] Week 3: Implement getAuthHeaders() function below
+ * [+] Week 3: Add Cognito authorizer to API Gateway
  * [ ] Week 4: Deploy Bedrock recommendations Lambda
  * [ ] Week 4: Update getRecommendations() function
  * [ ] Week 4: Remove all mock data returns
@@ -41,35 +60,7 @@ import { mockBooks, mockReadingLists } from './mockData';
  */
 
 // TODO: Uncomment this after deploying API Gateway (Week 2, Day 4)
-// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-
-/**
- * TODO: Implement this function in Week 3, Day 4
- *
- * This function gets the JWT token from Cognito and adds it to API requests.
- *
- * Implementation:
- * 1. Import: import { fetchAuthSession } from 'aws-amplify/auth';
- * 2. Get session: const session = await fetchAuthSession();
- * 3. Extract token: const token = session.tokens?.idToken?.toString();
- * 4. Return headers with Authorization: Bearer {token}
- *
- * See IMPLEMENTATION_GUIDE.md - Week 3, Day 5-7 for complete code.
- */
-// async function getAuthHeaders() {
-//   try {
-//     const session = await fetchAuthSession();
-//     const token = session.tokens?.idToken?.toString();
-//     return {
-//       'Authorization': `Bearer ${token}`,
-//       'Content-Type': 'application/json'
-//     };
-//   } catch {
-//     return {
-//       'Content-Type': 'application/json'
-//     };
-//   }
-// }
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 /**
  * Get all books from the catalog
@@ -89,10 +80,21 @@ import { mockBooks, mockReadingLists } from './mockData';
  * Expected response: Array of Book objects from DynamoDB
  */
 export async function getBooks(): Promise<Book[]> {
-  // TODO: Remove this mock implementation after deploying Lambda
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(mockBooks), 500);
-  });
+  const response = await fetch(`${API_BASE_URL}/books`);
+  if (!response.ok) throw new Error('Failed to fetch books');
+
+  const data = await response.json();
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (typeof data?.body === 'string') {
+    const parsed = JSON.parse(data.body);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+
+  return [];
 }
 
 /**
@@ -113,13 +115,23 @@ export async function getBooks(): Promise<Book[]> {
  * Expected response: Single Book object or null if not found
  */
 export async function getBook(id: string): Promise<Book | null> {
-  // TODO: Remove this mock implementation after deploying Lambda
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const book = mockBooks.find((b) => b.id === id);
-      resolve(book || null);
-    }, 300);
-  });
+  const response = await fetch(`${API_BASE_URL}/books/${encodeURIComponent(id)}`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch book');
+  }
+
+  const data = await response.json();
+
+  if (typeof data?.body === 'string') {
+    return JSON.parse(data.body) as Book;
+  }
+
+  return data as Book;
 }
 
 /**
@@ -295,18 +307,14 @@ export async function getReadingLists(): Promise<ReadingList[]> {
 export async function createReadingList(
   list: Omit<ReadingList, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<ReadingList> {
-  // TODO: Remove this mock implementation after deploying Lambda
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newList: ReadingList = {
-        ...list,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      resolve(newList);
-    }, 500);
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/reading-lists`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(list),
   });
+  if (!response.ok) throw new Error('Failed to create reading list');
+  return response.json();
 }
 
 /**

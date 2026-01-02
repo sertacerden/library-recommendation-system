@@ -217,4 +217,11 @@
       transform: translateX(100%);
     }
   }
+
+  /* Custom Backdrop Style for Offcanvas */
+  .hs-overlay-backdrop {
+    background-color: rgba(15, 23, 42, 0.7) !important;
+    /* slate-900 at 70% opacity */
+    backdrop-filter: blur(4px);
+  }
 }

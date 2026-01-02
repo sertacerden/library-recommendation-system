@@ -13,6 +13,8 @@ import { handleApiError, showSuccess } from '@/utils/errorHandling';
 export function Admin() {
   const [books, setBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [titleSearch, setTitleSearch] = useState('');
   const [addCoverUploadReset, setAddCoverUploadReset] = useState(0);
   const [editCoverUploadReset, setEditCoverUploadReset] = useState(0);
   const [newBook, setNewBook] = useState({
@@ -36,6 +38,46 @@ export function Admin() {
     // Initialize Preline components
     window.HSStaticMethods?.autoInit();
   }, [books]);
+
+  const filterBooksByTitle = (allBooks: Book[], query: string) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allBooks;
+    return allBooks.filter((b) => b.title.toLowerCase().includes(q));
+  };
+
+  const BOOKS_PER_PAGE = 10;
+  const filteredBooks = filterBooksByTitle(books, titleSearch);
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / BOOKS_PER_PAGE));
+  const clampedCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const pageStartIndex = (clampedCurrentPage - 1) * BOOKS_PER_PAGE;
+  const pageEndIndex = Math.min(pageStartIndex + BOOKS_PER_PAGE, filteredBooks.length);
+  const paginatedBooks = filteredBooks.slice(pageStartIndex, pageEndIndex);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(Math.max(prev, 1), totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [titleSearch]);
+
+  const getVisiblePages = (): Array<number | '...'> => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const pages: Array<number | '...'> = [];
+    const left = Math.max(2, clampedCurrentPage - 1);
+    const right = Math.min(totalPages - 1, clampedCurrentPage + 1);
+
+    pages.push(1);
+    if (left > 2) pages.push('...');
+    for (let p = left; p <= right; p++) pages.push(p);
+    if (right < totalPages - 1) pages.push('...');
+    pages.push(totalPages);
+
+    return pages;
+  };
 
   const loadBooks = async () => {
     setIsLoading(true);
@@ -86,7 +128,10 @@ export function Admin() {
 
     try {
       const created = await createBook(newBook);
-      setBooks([...books, created]);
+      const nextBooks = [...books, created];
+      setBooks(nextBooks);
+      const nextFiltered = filterBooksByTitle(nextBooks, titleSearch);
+      setCurrentPage(Math.max(1, Math.ceil(nextFiltered.length / BOOKS_PER_PAGE)));
       closeAddBookOffcanvas();
       showSuccess('Book added successfully!');
     } catch (error) {
@@ -177,6 +222,16 @@ export function Admin() {
             </Button>
           </div>
 
+          <div className="max-w-md">
+            <Input
+              label="Search by title"
+              type="text"
+              value={titleSearch}
+              onChange={(e) => setTitleSearch(e.target.value)}
+              placeholder="Type a book title..."
+            />
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -189,35 +244,90 @@ export function Admin() {
                 </tr>
               </thead>
               <tbody>
-                {books.map((book) => (
-                  <tr key={book.id} className="border-b hover:bg-slate-50">
-                    <td className="py-3 px-4">{book.title}</td>
-                    <td className="py-3 px-4">{book.author}</td>
-                    <td className="py-3 px-4">{book.genre}</td>
-                    <td className="py-3 px-4">{book.rating}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => openEditBookOffcanvas(book)}
-                          data-hs-overlay="#edit-book-offcanvas"
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => handleDeleteBook(book.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                {paginatedBooks.length === 0 ? (
+                  <tr>
+                    <td className="py-6 px-4 text-slate-600 text-center" colSpan={5}>
+                      {titleSearch.trim() ? 'No books match that title' : 'No books found'}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  paginatedBooks.map((book) => (
+                    <tr key={book.id} className="border-b hover:bg-slate-50">
+                      <td className="py-3 px-4">{book.title}</td>
+                      <td className="py-3 px-4">{book.author}</td>
+                      <td className="py-3 px-4">{book.genre}</td>
+                      <td className="py-3 px-4">{book.rating}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => openEditBookOffcanvas(book)}
+                            data-hs-overlay="#edit-book-offcanvas"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDeleteBook(book.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <p className="text-sm text-slate-600">
+              {filteredBooks.length === 0
+                ? 'Showing 0 of 0'
+                : `Showing ${pageStartIndex + 1}-${pageEndIndex} of ${filteredBooks.length}`}
+            </p>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={clampedCurrentPage === 1}
+                onClick={() => setCurrentPage(clampedCurrentPage - 1)}
+              >
+                Prev
+              </Button>
+
+              {getVisiblePages().map((p, idx) =>
+                p === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 text-slate-500">
+                    ...
+                  </span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === clampedCurrentPage ? 'primary' : 'secondary'}
+                    size="sm"
+                    aria-current={p === clampedCurrentPage ? 'page' : undefined}
+                    onClick={() => setCurrentPage(p)}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={clampedCurrentPage === totalPages}
+                onClick={() => setCurrentPage(clampedCurrentPage + 1)}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </div>
 

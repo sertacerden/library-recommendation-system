@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { CoverImageUpload } from '@/components/common/CoverImageUpload';
 import { getBooks, createBook, deleteBook } from '@/services/api';
 import { Book } from '@/types';
 import { handleApiError, showSuccess } from '@/utils/errorHandling';
@@ -12,6 +13,8 @@ import { handleApiError, showSuccess } from '@/utils/errorHandling';
 export function Admin() {
   const [books, setBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [addCoverUploadReset, setAddCoverUploadReset] = useState(0);
+  const [editCoverUploadReset, setEditCoverUploadReset] = useState(0);
   const [newBook, setNewBook] = useState({
     title: '',
     author: '',
@@ -114,6 +117,7 @@ export function Admin() {
       publishedYear: new Date().getFullYear(),
       isbn: '',
     });
+    setAddCoverUploadReset((n) => n + 1);
   };
 
   const openAddBookOffcanvas = () => {
@@ -126,6 +130,7 @@ export function Admin() {
 
   const openEditBookOffcanvas = (book: Book) => {
     setEditBook({ ...book });
+    setEditCoverUploadReset((n) => n + 1);
   };
 
   const closeEditBookOffcanvas = () => {
@@ -293,11 +298,11 @@ export function Admin() {
               />
             </div>
 
-            <Input
-              label="Cover Image URL"
-              type="text"
+            <CoverImageUpload
+              label="Cover Image"
               value={newBook.coverImage}
-              onChange={(e) => setNewBook({ ...newBook, coverImage: e.target.value })}
+              resetSignal={addCoverUploadReset}
+              onChange={(nextValue) => setNewBook({ ...newBook, coverImage: nextValue })}
             />
 
             <Input
@@ -407,11 +412,11 @@ export function Admin() {
                   />
                 </div>
 
-                <Input
-                  label="Cover Image URL"
-                  type="text"
+                <CoverImageUpload
+                  label="Cover Image"
                   value={editBook.coverImage || ''}
-                  onChange={(e) => setEditBook({ ...editBook, coverImage: e.target.value })}
+                  resetSignal={editCoverUploadReset}
+                  onChange={(nextValue) => setEditBook({ ...editBook, coverImage: nextValue })}
                 />
 
                 <Input

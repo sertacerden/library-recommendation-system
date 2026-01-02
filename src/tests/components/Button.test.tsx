@@ -19,7 +19,9 @@ describe('Button Component', () => {
   it('applies primary variant classes', () => {
     render(<Button variant="primary">Primary</Button>);
     const button = screen.getByText('Primary');
-    expect(button).toHaveClass('bg-primary-600');
+    expect(button).toHaveClass('bg-gradient-to-r');
+    expect(button).toHaveClass('from-violet-600');
+    expect(button).toHaveClass('to-indigo-600');
   });
 
   it('is disabled when disabled prop is true', () => {

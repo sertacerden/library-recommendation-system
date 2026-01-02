@@ -3,7 +3,7 @@ import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { CoverImageUpload } from '@/components/common/CoverImageUpload';
-import { getBooks, createBook, deleteBook } from '@/services/api';
+import { getBooks, createBook, updateBook, deleteBook } from '@/services/api';
 import { Book } from '@/types';
 import { handleApiError, showSuccess } from '@/utils/errorHandling';
 
@@ -49,6 +49,35 @@ export function Admin() {
     }
   };
 
+  const openAddBookOffcanvas = () => {
+    // Rely on data attribute for opening, or programmatic if needed
+    // But we need to reset form state
+    setNewBook({
+      title: '',
+      author: '',
+      genre: '',
+      description: '',
+      coverImage: '',
+      rating: 0,
+      publishedYear: new Date().getFullYear(),
+      isbn: '',
+    });
+    setAddCoverUploadReset((prev) => prev + 1);
+  };
+
+  const closeAddBookOffcanvas = () => {
+    window.HSOverlay?.close('#add-book-offcanvas');
+  };
+
+  const openEditBookOffcanvas = (book: Book) => {
+    setEditBook(book);
+    setEditCoverUploadReset((prev) => prev + 1);
+  };
+
+  const closeEditBookOffcanvas = () => {
+    window.HSOverlay?.close('#edit-book-offcanvas');
+  };
+
   const handleCreateBook = async () => {
     if (!newBook.title || !newBook.author) {
       alert('Please fill in required fields');
@@ -56,11 +85,9 @@ export function Admin() {
     }
 
     try {
-      // TODO: Replace with Lambda API call
       const created = await createBook(newBook);
       setBooks([...books, created]);
       closeAddBookOffcanvas();
-      resetForm();
       showSuccess('Book added successfully!');
     } catch (error) {
       handleApiError(error);
@@ -74,10 +101,7 @@ export function Admin() {
     }
 
     try {
-      // TODO: Replace with Lambda API call for update
-      // const updated = await updateBook(editBook);
-      // Mock update for now
-      const updated = editBook;
+      const updated = await updateBook(editBook.id, editBook);
       setBooks(books.map((b) => (b.id === updated.id ? updated : b)));
 
       closeEditBookOffcanvas();
@@ -87,6 +111,7 @@ export function Admin() {
       }, 300);
       showSuccess('Book updated successfully!');
     } catch (error) {
+      console.error(error); // Log detailed error
       handleApiError(error);
     }
   };
@@ -97,44 +122,12 @@ export function Admin() {
     }
 
     try {
-      // TODO: Replace with Lambda API call
-      await deleteBook();
+      await deleteBook(id);
       setBooks(books.filter((book) => book.id !== id));
       showSuccess('Book deleted successfully!');
     } catch (error) {
       handleApiError(error);
     }
-  };
-
-  const resetForm = () => {
-    setNewBook({
-      title: '',
-      author: '',
-      genre: '',
-      description: '',
-      coverImage: '',
-      rating: 0,
-      publishedYear: new Date().getFullYear(),
-      isbn: '',
-    });
-    setAddCoverUploadReset((n) => n + 1);
-  };
-
-  const openAddBookOffcanvas = () => {
-    resetForm();
-  };
-
-  const closeAddBookOffcanvas = () => {
-    window.HSOverlay?.close('#add-book-offcanvas');
-  };
-
-  const openEditBookOffcanvas = (book: Book) => {
-    setEditBook({ ...book });
-    setEditCoverUploadReset((n) => n + 1);
-  };
-
-  const closeEditBookOffcanvas = () => {
-    window.HSOverlay?.close('#edit-book-offcanvas');
   };
 
   if (isLoading) {
@@ -264,7 +257,14 @@ export function Admin() {
               </svg>
             </button>
           </div>
-          <div className="p-4 space-y-4 overflow-y-auto h-[calc(100vh-60px)] pb-20">
+          <div className="p-4 space-y-4 overflow-y-auto h-[calc(100%-60px)] pb-8">
+            <CoverImageUpload
+              label="Cover Image"
+              value={newBook.coverImage}
+              onChange={(val) => setNewBook({ ...newBook, coverImage: val })}
+              resetSignal={addCoverUploadReset}
+            />
+
             <Input
               label="Title"
               type="text"
@@ -298,15 +298,8 @@ export function Admin() {
               />
             </div>
 
-            <CoverImageUpload
-              label="Cover Image"
-              value={newBook.coverImage}
-              resetSignal={addCoverUploadReset}
-              onChange={(nextValue) => setNewBook({ ...newBook, coverImage: nextValue })}
-            />
-
             <Input
-              label="Rating"
+              label="Rating (0-5)"
               type="number"
               min="0"
               max="5"
@@ -376,9 +369,16 @@ export function Admin() {
               </svg>
             </button>
           </div>
-          <div className="p-4 space-y-4 overflow-y-auto h-[calc(100vh-60px)] pb-20">
+          <div className="p-4 space-y-4 overflow-y-auto h-[calc(100%-60px)] pb-8">
             {editBook && (
               <>
+                <CoverImageUpload
+                  label="Cover Image"
+                  value={editBook.coverImage || ''}
+                  resetSignal={editCoverUploadReset}
+                  onChange={(nextValue) => setEditBook({ ...editBook, coverImage: nextValue })}
+                />
+
                 <Input
                   label="Title"
                   type="text"
@@ -404,7 +404,9 @@ export function Admin() {
                 />
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Description
+                  </label>
                   <textarea
                     value={editBook.description || ''}
                     onChange={(e) => setEditBook({ ...editBook, description: e.target.value })}
@@ -433,7 +435,9 @@ export function Admin() {
                   label="Published Year"
                   type="number"
                   value={editBook.publishedYear}
-                  onChange={(e) => setEditBook({ ...editBook, publishedYear: parseInt(e.target.value) })}
+                  onChange={(e) =>
+                    setEditBook({ ...editBook, publishedYear: parseInt(e.target.value) })
+                  }
                 />
 
                 <Input

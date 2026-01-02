@@ -1,5 +1,4 @@
 import { Book, ReadingList, Review, Recommendation } from '@/types';
-import { mockBooks } from './mockData';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -177,16 +176,31 @@ export async function getBook(id: string): Promise<Book | null> {
  * Note: This endpoint requires admin role in Cognito
  */
 export async function createBook(book: Omit<Book, 'id'>): Promise<Book> {
-  // TODO: Remove this mock implementation after deploying Lambda
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newBook: Book = {
-        ...book,
-        id: Date.now().toString(),
-      };
-      resolve(newBook);
-    }, 500);
-  });
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/books`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(book),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Failed to create book: ${response.status} ${response.statusText}. ${errorText}`
+      );
+    }
+
+    const data = await response.json();
+    return isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Network error: Unable to connect to API at ${API_BASE_URL}. Original error: ${error.message}`
+      );
+    }
+    throw error;
+  }
 }
 
 /**
@@ -194,29 +208,59 @@ export async function createBook(book: Omit<Book, 'id'>): Promise<Book> {
  * TODO: Replace with PUT /books/:id API call
  */
 export async function updateBook(id: string, book: Partial<Book>): Promise<Book> {
-  // Mock implementation
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const existingBook = mockBooks.find((b) => b.id === id);
-      const updatedBook: Book = {
-        ...existingBook!,
-        ...book,
-        id,
-      };
-      resolve(updatedBook);
-    }, 500);
-  });
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/books/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(book),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Failed to update book: ${response.status} ${response.statusText}. ${errorText}`
+      );
+    }
+
+    const data = await response.json();
+    return isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Network error: Unable to connect to API at ${API_BASE_URL}. Original error: ${error.message}`
+      );
+    }
+    throw error;
+  }
 }
 
 /**
  * Delete a book (admin only)
  * TODO: Replace with DELETE /books/:id API call
  */
-export async function deleteBook(): Promise<void> {
-  // Mock implementation
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(), 300);
-  });
+export async function deleteBook(id: string): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/books/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Failed to delete book: ${response.status} ${response.statusText}. ${errorText}`
+      );
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Network error: Unable to connect to API at ${API_BASE_URL}. Original error: ${error.message}`
+      );
+    }
+    throw error;
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
-import { useState, useEffect, type ReactElement } from 'react';
-import { BookSearch } from '@/components/books/BookSearch';
+import { useState, useEffect, useMemo, type ReactElement } from 'react';
+import { BookSearch, type FilterState } from '@/components/books/BookSearch';
 import { BookGrid } from '@/components/books/BookGrid';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { getBooks } from '@/services/api';
@@ -7,27 +7,87 @@ import { Book } from '@/types';
 import { handleApiError } from '@/utils/errorHandling';
 
 /**
+ * Helper function to sort books based on criteria
+ */
+const sortBooks = (books: Book[], criteria: string): Book[] => {
+  return [...books].sort((a, b) => {
+    switch (criteria) {
+      case 'title':
+        return a.title.localeCompare(b.title);
+      case 'author':
+        return a.author.localeCompare(b.author);
+      case 'rating':
+        return b.rating - a.rating;
+      case 'year':
+        return b.publishedYear - a.publishedYear;
+      default:
+        return 0;
+    }
+  });
+};
+
+/**
  * Books page component with search and filtering
  */
 export function Books() {
   const [books, setBooks] = useState<Book[]>([]);
-  const [filteredBooks, setFilteredBooks] = useState<Book[]>([]);
+  const [filters, setFilters] = useState<FilterState>({ genre: '', rating: '', year: '' });
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('title');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Derive unique values for filters
+  const uniqueGenres = useMemo(() => Array.from(new Set(books.map(b => b.genre))).sort(), [books]);
+  const uniqueYears = useMemo(() => Array.from(new Set(books.map(b => b.publishedYear))).sort((a, b) => b - a), [books]);
+
+  // Derived filtered and sorted books
+  const filteredBooks = useMemo(() => {
+    let result = books;
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (book) =>
+          book.title.toLowerCase().includes(q) ||
+          book.author.toLowerCase().includes(q) ||
+          book.genre.toLowerCase().includes(q)
+      );
+    }
+
+    // Genre
+    if (filters.genre) {
+      result = result.filter((book) => book.genre === filters.genre);
+    }
+
+    // Rating
+    if (filters.rating) {
+      const minRating = parseFloat(filters.rating);
+      result = result.filter((book) => book.rating >= minRating);
+    }
+
+    // Year
+    if (filters.year) {
+      const year = parseInt(filters.year);
+      result = result.filter((book) => book.publishedYear === year);
+    }
+
+    return sortBooks(result, sortBy);
+  }, [books, searchQuery, filters, sortBy]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / pageSize));
 
   useEffect(() => {
-    // Clamp page when filters/search change
-    setCurrentPage((prev) => Math.min(prev, totalPages));
-  }, [totalPages]);
+    // Reset to page 1 when filters/search changes
+    setCurrentPage(1);
+  }, [searchQuery, filters, sortBy]);
 
   useEffect(() => {
     // Ensure Preline dropdowns are (re)bound when pagination UI changes
     window.HSStaticMethods?.autoInit();
-  }, [totalPages]);
+  }, [totalPages, currentPage]);
 
   useEffect(() => {
     loadBooks();
@@ -38,8 +98,7 @@ export function Books() {
     try {
       const data = await getBooks();
       setBooks(data);
-      setFilteredBooks(data);
-      setCurrentPage(1);
+      // filteredBooks is derived now
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -52,27 +111,11 @@ export function Books() {
   }, [currentPage]);
 
   const handleSearch = (query: string) => {
-    if (!query.trim()) {
-      setFilteredBooks(books);
-      setCurrentPage(1);
-      return;
-    }
-
-    const lowercaseQuery = query.toLowerCase();
-    const filtered = books.filter(
-      (book) =>
-        book.title.toLowerCase().includes(lowercaseQuery) ||
-        book.author.toLowerCase().includes(lowercaseQuery) ||
-        book.genre.toLowerCase().includes(lowercaseQuery)
-    );
-    setFilteredBooks(filtered);
-    setCurrentPage(1);
+    setSearchQuery(query);
   };
 
-  // TODO: Implement sort functionality
   const handleSort = (value: string) => {
     setSortBy(value);
-    // Add sorting logic here
   };
 
   const startIndex = (currentPage - 1) * pageSize;
@@ -124,7 +167,13 @@ export function Books() {
 
         {/* Search */}
         <div className="mb-8">
-          <BookSearch onSearch={handleSearch} />
+          <BookSearch
+            onSearch={handleSearch}
+            onFilterChange={setFilters}
+            genres={uniqueGenres}
+            years={uniqueYears}
+            filters={filters}
+          />
         </div>
 
         {/* Filters & Sort */}
@@ -139,7 +188,7 @@ export function Books() {
                 <>
                   Showing{' '}
                   <span className="text-violet-600">
-                    {startIndex + 1}-{endIndex}
+                    {filteredBooks.length > 0 ? startIndex + 1 : 0}-{endIndex}
                   </span>{' '}
                   of <span className="text-violet-600">{filteredBooks.length}</span>{' '}
                   {filteredBooks.length === 1 ? 'book' : 'books'}
@@ -202,17 +251,17 @@ export function Books() {
                     totalPages <= 7
                       ? Array.from({ length: totalPages }, (_, i) => i + 1)
                       : (() => {
-                          const pageSet = new Set<number>();
-                          pageSet.add(1);
-                          pageSet.add(totalPages);
-                          pageSet.add(currentPage);
-                          pageSet.add(currentPage - 1);
-                          pageSet.add(currentPage + 1);
+                        const pageSet = new Set<number>();
+                        pageSet.add(1);
+                        pageSet.add(totalPages);
+                        pageSet.add(currentPage);
+                        pageSet.add(currentPage - 1);
+                        pageSet.add(currentPage + 1);
 
-                          return Array.from(pageSet)
-                            .filter((p) => p >= 1 && p <= totalPages)
-                            .sort((a, b) => a - b);
-                        })();
+                        return Array.from(pageSet)
+                          .filter((p) => p >= 1 && p <= totalPages)
+                          .sort((a, b) => a - b);
+                      })();
 
                   const gapGroups = buildHiddenPageGroups(visiblePages);
 

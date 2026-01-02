@@ -3,22 +3,42 @@ import React, { useState } from 'react';
 /**
  * BookSearch component props
  */
+export interface FilterState {
+  genre: string;
+  rating: string;
+  year: string;
+}
+
 interface BookSearchProps {
   onSearch: (query: string) => void;
+  onFilterChange: (filters: FilterState) => void;
+  genres: string[];
+  years: number[];
+  filters: FilterState;
 }
 
 /**
  * Modern BookSearch component with beautiful glass morphism
- *
- * @example
- * <BookSearch onSearch={handleSearch} />
  */
-export function BookSearch({ onSearch }: BookSearchProps) {
+export function BookSearch({
+  onSearch,
+  onFilterChange,
+  genres = [],
+  years = [],
+  filters
+}: BookSearchProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch(searchQuery);
+  };
+
+  const handleFilterChange = (key: keyof FilterState, value: string) => {
+    onFilterChange({
+      ...filters,
+      [key]: value
+    });
   };
 
   return (
@@ -70,39 +90,47 @@ export function BookSearch({ onSearch }: BookSearchProps) {
           </button>
         </div>
 
-        {/* TODO: Implement filter logic */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Genre</label>
-            <select className="input-modern">
+            <select
+              value={filters.genre}
+              onChange={(e) => handleFilterChange('genre', e.target.value)}
+              className="input-modern"
+            >
               <option value="">All Genres</option>
-              <option value="fiction">Fiction</option>
-              <option value="sci-fi">Science Fiction</option>
-              <option value="mystery">Mystery</option>
-              <option value="romance">Romance</option>
-              <option value="non-fiction">Non-Fiction</option>
+              {genres.map(genre => (
+                <option key={genre} value={genre}>{genre}</option>
+              ))}
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Rating</label>
-            <select className="input-modern">
+            <select
+              value={filters.rating}
+              onChange={(e) => handleFilterChange('rating', e.target.value)}
+              className="input-modern"
+            >
               <option value="">All Ratings</option>
               <option value="4.5">4.5+ Stars</option>
               <option value="4.0">4.0+ Stars</option>
               <option value="3.5">3.5+ Stars</option>
+              <option value="3.0">3.0+ Stars</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Year</label>
-            <select className="input-modern">
+            <select
+              value={filters.year}
+              onChange={(e) => handleFilterChange('year', e.target.value)}
+              className="input-modern"
+            >
               <option value="">All Years</option>
-              <option value="2024">2024</option>
-              <option value="2023">2023</option>
-              <option value="2022">2022</option>
-              <option value="2021">2021</option>
-              <option value="2020">2020</option>
+              {years.map(year => (
+                <option key={year} value={year.toString()}>{year}</option>
+              ))}
             </select>
           </div>
         </div>

@@ -1,10 +1,19 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/common/Button';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Modern Home page with stunning gradients and animations
  */
 export function Home() {
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  const handleGetStarted = () => {
+    if (isLoading) return;
+    if (isAuthenticated) navigate('/reading-lists');
+    else navigate('/login');
+  };
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -186,11 +195,17 @@ export function Home() {
             Join thousands of readers discovering their next favorite books with AI-powered
             recommendations
           </p>
-          <Link to="/signup">
-            <Button variant="secondary" size="lg" className="min-w-[250px]">
+          <div>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="min-w-[250px]"
+              onClick={handleGetStarted}
+              disabled={isLoading}
+            >
               Get Started Free
             </Button>
-          </Link>
+          </div>
         </div>
       </section>
     </div>

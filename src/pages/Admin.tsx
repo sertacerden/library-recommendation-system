@@ -3,7 +3,14 @@ import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { CoverImageUpload } from '@/components/common/CoverImageUpload';
-import { getBooks, createBook, updateBook, deleteBook } from '@/services/api';
+import {
+  getBooks,
+  createBook,
+  updateBook,
+  deleteBook,
+  getAllReadingLists,
+  getUsers,
+} from '@/services/api';
 import { Book } from '@/types';
 import { handleApiError, showSuccess } from '@/utils/errorHandling';
 
@@ -30,8 +37,11 @@ export function Admin() {
 
   const [editBook, setEditBook] = useState<Book | null>(null);
 
+  const [readingListCount, setReadingListCount] = useState(0);
+  const [userCount, setUserCount] = useState(0);
+
   useEffect(() => {
-    loadBooks();
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -79,11 +89,17 @@ export function Admin() {
     return pages;
   };
 
-  const loadBooks = async () => {
+  const loadData = async () => {
     setIsLoading(true);
     try {
-      const data = await getBooks();
-      setBooks(data);
+      const [booksData, readingListsData, usersData] = await Promise.all([
+        getBooks(),
+        getAllReadingLists().catch(() => []),
+        getUsers().catch(() => []),
+      ]);
+      setBooks(booksData);
+      setReadingListCount(readingListsData.length);
+      setUserCount(usersData.length);
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -199,13 +215,11 @@ export function Admin() {
           </div>
           <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-lg font-semibold mb-2 opacity-90">Total Users</h3>
-            <p className="text-5xl font-bold">42</p>
-            <p className="text-sm mt-1 opacity-75">Placeholder data</p>
+            <p className="text-5xl font-bold">{userCount}</p>
           </div>
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-lg font-semibold mb-2 opacity-90">Active Reading Lists</h3>
-            <p className="text-5xl font-bold">18</p>
-            <p className="text-sm mt-1 opacity-75">Placeholder data</p>
+            <p className="text-5xl font-bold">{readingListCount}</p>
           </div>
         </div>
 
@@ -253,7 +267,22 @@ export function Admin() {
                 ) : (
                   paginatedBooks.map((book) => (
                     <tr key={book.id} className="border-b hover:bg-slate-50">
-                      <td className="py-3 px-4">{book.title}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          {book.coverImage ? (
+                            <img
+                              src={book.coverImage}
+                              alt={book.title}
+                              className="h-10 w-8 object-cover rounded shadow-sm border border-slate-200"
+                            />
+                          ) : (
+                            <div className="h-10 w-8 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
+                              <span className="text-xs text-slate-400">No Img</span>
+                            </div>
+                          )}
+                          <span className="font-medium text-slate-900">{book.title}</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4">{book.author}</td>
                       <td className="py-3 px-4">{book.genre}</td>
                       <td className="py-3 px-4">{book.rating}</td>

@@ -566,3 +566,66 @@ export async function createReview(review: Omit<Review, 'id' | 'createdAt'>): Pr
     }, 500);
   });
 }
+
+/**
+ * Get all reading lists (admin only)
+ */
+export async function getAllReadingLists(): Promise<ReadingList[]> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/admin/reading-lists`, { headers });
+
+    if (!response.ok) {
+      console.warn('Failed to fetch admin reading lists, falling back to user lists');
+      return getReadingLists();
+    }
+    const data = await response.json();
+    let itemsRaw: unknown = [];
+    if (Array.isArray(data)) {
+      itemsRaw = data;
+    } else if (isObject(data) && typeof data.body === 'string') {
+      itemsRaw = JSON.parse(data.body);
+    }
+
+    if (!Array.isArray(itemsRaw)) return [];
+
+    return itemsRaw
+      .map((item) => {
+        if (!isObject(item)) return null;
+        const bookIdsRaw = item.bookIds;
+        const bookIds = Array.isArray(bookIdsRaw)
+          ? bookIdsRaw.filter((id): id is string => typeof id === 'string')
+          : [];
+        return {
+          ...(item as unknown as ReadingList),
+          bookIds,
+        };
+      })
+      .filter((item): item is ReadingList => item !== null);
+  } catch (error) {
+    console.error('Failed to get all reading lists:', error);
+    return [];
+  }
+}
+
+/**
+ * Get total users count (admin only)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getUsers(): Promise<any[]> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/admin/users`, { headers });
+
+    if (!response.ok) {
+      console.warn('Failed to fetch users');
+      return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : JSON.parse(data.body || '[]');
+  } catch (error) {
+    console.error('Failed to get users:', error);
+    return [];
+  }
+}

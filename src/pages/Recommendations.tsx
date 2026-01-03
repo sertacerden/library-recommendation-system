@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Button } from '@/components/common/Button';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { getRecommendations } from '@/services/api';
+import { getRecommendations, getBooks } from '@/services/api';
 import { Recommendation } from '@/types';
 import { handleApiError } from '@/utils/errorHandling';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Recommendations page component with AI-powered suggestions
@@ -12,6 +13,31 @@ export function Recommendations() {
   const [query, setQuery] = useState('');
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const navigate = useNavigate();
+
+  const handleGoToBook = async (rec: Recommendation) => {
+    try {
+      const books = await getBooks();
+      const title = rec.title.toLowerCase();
+      const author = rec.author.toLowerCase();
+
+      const exact = books.find((b) => b.title.toLowerCase() === title && b.author.toLowerCase() === author);
+      const titleMatch = books.find((b) => b.title.toLowerCase().includes(title));
+      const authorMatch = books.find((b) => b.author.toLowerCase().includes(author));
+
+      const match = exact || titleMatch || authorMatch;
+
+      if (match) {
+        navigate(`/books/${encodeURIComponent(match.id)}`);
+      } else {
+        alert('Book not found in catalog — opening full catalog.');
+        navigate('/books');
+      }
+    } catch (error) {
+      handleApiError(error);
+    }
+  }; 
 
   const exampleQueries = [
     'I love mystery novels with strong female protagonists',
@@ -136,17 +162,26 @@ export function Recommendations() {
                 return (
                   <div
                     key={`${rec.title}-${rec.author}-${index}`}
-                    className="glass-effect rounded-2xl shadow-xl border border-white/20 p-6 hover-glow transition-all duration-300"
+                    className="relative glass-effect rounded-2xl shadow-xl border border-white/20 p-6 pb-12 hover-glow transition-all duration-300"
                   >
                     <div>
                       <h3 className="text-2xl font-bold text-slate-900 mb-2">{rec.title}</h3>
                       <p className="text-slate-600 mb-3 font-medium">by {rec.author}</p>
                       <p className="text-slate-700 mb-4 leading-relaxed">{rec.reason}</p>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="bg-linear-to-r from-violet-100 to-indigo-100 px-3 py-1.5 rounded-xl border border-violet-200">
-                          <span className="text-sm text-violet-700 font-semibold">
-                            Confidence: {Math.round(rec.confidence * 100)}%
-                          </span>
+
+                      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-linear-to-r from-violet-100 to-indigo-100 px-3 py-1.5 rounded-xl border border-violet-200">
+                            <span className="text-sm text-violet-700 font-semibold">
+                              Confidence: {Math.round(rec.confidence * 100)}%
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Button variant="danger" size="sm" onClick={() => handleGoToBook(rec)}>
+                            Go to Book
+                          </Button>
                         </div>
                       </div>
                     </div>

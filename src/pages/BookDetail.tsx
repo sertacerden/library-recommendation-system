@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/common/Button';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { getBook } from '@/services/api';
-import { Book } from '@/types';
+import { Input } from '@/components/common/Input';
+import { getBook, getReadingLists, updateReadingList, createReadingList } from '@/services/api';
+import { Book, ReadingList } from '@/types';
 import { formatRating } from '@/utils/formatters';
-import { handleApiError } from '@/utils/errorHandling';
+import { handleApiError, showSuccess } from '@/utils/errorHandling';
 
 /**
  * BookDetail page component
@@ -39,9 +40,72 @@ export function BookDetail() {
     }
   };
 
-  // TODO: Implement add to reading list functionality
-  const handleAddToList = () => {
-    alert('Add to reading list functionality coming soon!');
+  // Add to reading list functionality
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [lists, setLists] = useState<ReadingList[]>([]);
+  const [isListsLoading, setIsListsLoading] = useState(false);
+  const [newListNameForQuickCreate, setNewListNameForQuickCreate] = useState('');
+  const [selectedListId, setSelectedListId] = useState<string>('');
+
+  const handleAddToList = async () => {
+    setShowAddModal(true);
+    if (lists.length === 0) {
+      setIsListsLoading(true);
+      try {
+        const data = await getReadingLists();
+        setLists(data);
+      } catch (error) {
+        handleApiError(error);
+      } finally {
+        setIsListsLoading(false);
+      }
+    }
+  };
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setNewListNameForQuickCreate('');
+  };
+
+  const handleAddToExistingList = async (listId?: string) => {
+    const targetId = listId ?? selectedListId;
+    if (!book || !targetId) return;
+    try {
+      const list = lists.find((l) => l.id === targetId);
+      if (!list) return;
+      if (list.bookIds.includes(book.id)) {
+        alert('This book is already in the selected list');
+        return;
+      }
+      const updated = await updateReadingList(targetId, { bookIds: [...list.bookIds, book.id] });
+      setLists((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      showSuccess(`Added to "${updated.name}"`);
+      window.dispatchEvent(new Event('reading-lists-changed'));
+      setSelectedListId('');
+      closeAddModal();
+    } catch (error) {
+      handleApiError(error);
+    }
+  };
+
+  const handleCreateListWithBook = async () => {
+    if (!newListNameForQuickCreate.trim()) {
+      alert('Please enter a name for the list');
+      return;
+    }
+    try {
+      const created = await createReadingList({
+        name: newListNameForQuickCreate.trim(),
+        description: '',
+        bookIds: [book!.id],
+      });
+      setLists((prev) => [...prev, created]);
+      showSuccess('Reading list created and book added!');
+      window.dispatchEvent(new Event('reading-lists-changed'));
+      closeAddModal();
+    } catch (error) {
+      handleApiError(error);
+    }
   };
 
   if (isLoading) {
@@ -186,6 +250,94 @@ export function BookDetail() {
             </div>
           </div>
         </div>
+
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={closeAddModal}></div>
+            <div className="relative z-10 bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+              <h3 className="text-lg font-bold mb-3">Add &quot;{book.title}&quot; to reading list</h3>
+
+              {isListsLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <div>
+                  {lists.length === 0 ? (
+                    <div>
+                      <p className="text-slate-600 mb-3">You don't have any reading lists yet. Create one now:</p>
+                      <Input
+                        label="List Name"
+                        type="text"
+                        value={newListNameForQuickCreate}
+                        onChange={(e) => setNewListNameForQuickCreate(e.target.value)}
+                        placeholder="e.g., Favorites"
+                      />
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="primary" onClick={handleCreateListWithBook}>
+                          Create & Add
+                        </Button>
+                        <Button variant="secondary" onClick={closeAddModal}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Choose a list</label>
+                      <select
+                        value={selectedListId}
+                        onChange={(e) => setSelectedListId(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 mb-3"
+                      >
+                        <option value="">Select a list…</option>
+                        {lists.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} ({l.bookIds.length} books)
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="primary"
+                          onClick={() => handleAddToExistingList()}
+                          disabled={
+                            !selectedListId || lists.find((l) => l.id === selectedListId)?.bookIds.includes(book.id)
+                          }
+                        >
+                          Add to Selected
+                        </Button>
+                        <Button variant="secondary" onClick={closeAddModal}>
+                          Cancel
+                        </Button>
+                      </div>
+
+                      <div className="mt-3 border-t pt-3">
+                        <p className="text-slate-600 mb-2">Or create a new list:</p>
+                        <Input
+                          label="New List Name"
+                          type="text"
+                          value={newListNameForQuickCreate}
+                          onChange={(e) => setNewListNameForQuickCreate(e.target.value)}
+                          placeholder="e.g., To Read"
+                        />
+                        <div className="flex justify-end gap-2 mt-3">
+                          <Button variant="primary" onClick={handleCreateListWithBook}>
+                            Create & Add
+                          </Button>
+                          <Button variant="secondary" onClick={closeAddModal}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* TODO: Implement reviews section */}
         <div className="mt-8 glass-effect rounded-3xl shadow-xl border border-white/20 p-8 md:p-12">

@@ -42,6 +42,15 @@ export function ReadingLists() {
     window.HSStaticMethods?.autoInit();
   }, [lists]);
 
+  // Reload lists when other parts of the app modify reading lists
+  useEffect(() => {
+    const handler = () => {
+      loadLists();
+    };
+    window.addEventListener('reading-lists-changed', handler);
+    return () => window.removeEventListener('reading-lists-changed', handler);
+  }, []);
+
   const loadLists = async () => {
     setIsLoading(true);
     try {

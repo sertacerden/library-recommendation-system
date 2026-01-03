@@ -76,7 +76,7 @@ export function Books() {
     return sortBooks(result, sortBy);
   }, [books, searchQuery, filters, sortBy]);
 
-  const pageSize = 10;
+  const pageSize = 12;
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / pageSize));
 
   useEffect(() => {

@@ -65,6 +65,8 @@ export function Footer() {
           <div className="flex justify-center md:justify-end space-x-3">
             <a
               href="https://github.com/Kenpir/library-recommendation-system"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 flex items-center justify-center transition-all hover:scale-110 border border-white/20"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

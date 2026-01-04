@@ -4,12 +4,29 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const session = await fetchAuthSession();
-    const token = session.tokens?.idToken?.toString();
+    // Token selection can vary by API Gateway authorizer type:
+    // - Many Cognito User Pool authorizers (REST API) expect an ID token.
+    // - Some JWT authorizers (HTTP API) validate `aud`, which is typically present on ID tokens,
+    //   while access tokens often use `client_id` instead.
+    //
+    // Configure via Vite env:
+    // - VITE_AUTH_TOKEN_TYPE=id (default)      -> use idToken
+    // - VITE_AUTH_TOKEN_TYPE=access           -> use accessToken
+    const tokenType = (import.meta.env.VITE_AUTH_TOKEN_TYPE || 'id').toLowerCase();
+    const token =
+      tokenType === 'access'
+        ? session.tokens?.accessToken?.toString() ?? session.tokens?.idToken?.toString()
+        : session.tokens?.idToken?.toString() ?? session.tokens?.accessToken?.toString();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      // Some API Gateway authorizers expect a raw JWT, others expect `Bearer <jwt>`.
+      // Configure via Vite env:
+      // - VITE_AUTH_HEADER_MODE=bearer (default) -> "Authorization: Bearer <token>"
+      // - VITE_AUTH_HEADER_MODE=raw           -> "Authorization: <token>"
+      const mode = (import.meta.env.VITE_AUTH_HEADER_MODE || 'bearer').toLowerCase();
+      headers.Authorization = mode === 'raw' ? token : `Bearer ${token}`;
     }
     return headers;
   } catch {
@@ -428,43 +445,146 @@ export async function deleteReadingList(id: string): Promise<void> {
 
 /**
  * Get reviews for a book
- * TODO: Replace with GET /books/:id/reviews API call
  */
 export async function getReviews(bookId: string): Promise<Review[]> {
-  // Mock implementation
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const mockReviews: Review[] = [
-        {
-          id: '1',
-          bookId,
-          userId: '1',
-          rating: 5,
-          comment: 'Absolutely loved this book! A must-read.',
-          createdAt: '2024-11-01T10:00:00Z',
-        },
-      ];
-      resolve(mockReviews);
-    }, 500);
-  });
+  try {
+    // Some deployments protect GET reviews behind Cognito as well, so include auth headers.
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/books/${encodeURIComponent(bookId)}/reviews?limit=50`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Failed to fetch reviews: ${response.status} ${response.statusText}. ${errorText}`
+      );
+    }
+
+    const data = await response.json();
+    const payload: unknown = isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
+
+    const itemsRaw: unknown =
+      isObject(payload) && Array.isArray(payload.items) ? payload.items : payload;
+
+    if (!Array.isArray(itemsRaw)) return [];
+
+    const toReview = (item: unknown): Review | null => {
+      if (!isObject(item)) return null;
+      const idRaw = item.id ?? item.reviewId;
+      const bookIdRaw = item.bookId;
+      const userIdRaw = item.userId;
+      const userNameRaw = item.userName ?? item.name ?? item.userDisplayName;
+      const ratingRaw = item.rating;
+      const commentRaw = item.comment;
+      const createdAtRaw = item.createdAt;
+
+      if (
+        typeof idRaw !== 'string' ||
+        typeof bookIdRaw !== 'string' ||
+        typeof userIdRaw !== 'string' ||
+        typeof ratingRaw !== 'number' ||
+        typeof commentRaw !== 'string' ||
+        typeof createdAtRaw !== 'string'
+      ) {
+        return null;
+      }
+
+      return {
+        id: idRaw,
+        bookId: bookIdRaw,
+        userId: userIdRaw,
+        ...(typeof userNameRaw === 'string' && userNameRaw.trim()
+          ? { userName: userNameRaw.trim() }
+          : {}),
+        rating: ratingRaw,
+        comment: commentRaw,
+        createdAt: createdAtRaw,
+      };
+    };
+
+    return itemsRaw.map(toReview).filter((r): r is Review => r !== null);
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Network error: Unable to connect to API at ${API_BASE_URL}. Please check your API configuration and ensure the server is running.`
+      );
+    }
+    throw error;
+  }
 }
 
 /**
  * Create a new review
- * TODO: Replace with POST /books/:bookId/reviews API call
  */
-export async function createReview(review: Omit<Review, 'id' | 'createdAt'>): Promise<Review> {
-  // Mock implementation
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newReview: Review = {
-        ...review,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-      };
-      resolve(newReview);
-    }, 500);
-  });
+export async function createReview(input: {
+  bookId: string;
+  rating: number;
+  comment: string;
+}): Promise<Review> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/books/${encodeURIComponent(input.bookId)}/reviews`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        rating: input.rating,
+        comment: input.comment,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Failed to create review: ${response.status} ${response.statusText}. ${errorText}`
+      );
+    }
+
+    const data = await response.json();
+    const payload: unknown = isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
+
+    if (!isObject(payload)) {
+      throw new Error('Invalid create review response');
+    }
+
+    const idRaw = payload.id ?? payload.reviewId;
+    const bookIdRaw = payload.bookId;
+    const userIdRaw = payload.userId;
+    const userNameRaw = payload.userName ?? payload.name ?? payload.userDisplayName;
+    const ratingRaw = payload.rating;
+    const commentRaw = payload.comment;
+    const createdAtRaw = payload.createdAt;
+
+    if (
+      typeof idRaw !== 'string' ||
+      typeof bookIdRaw !== 'string' ||
+      typeof userIdRaw !== 'string' ||
+      typeof ratingRaw !== 'number' ||
+      typeof commentRaw !== 'string' ||
+      typeof createdAtRaw !== 'string'
+    ) {
+      throw new Error('Invalid create review response shape');
+    }
+
+    return {
+      id: idRaw,
+      bookId: bookIdRaw,
+      userId: userIdRaw,
+      ...(typeof userNameRaw === 'string' && userNameRaw.trim()
+        ? { userName: userNameRaw.trim() }
+        : {}),
+      rating: ratingRaw,
+      comment: commentRaw,
+      createdAt: createdAtRaw,
+    };
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Network error: Unable to connect to API at ${API_BASE_URL}. Please check your API configuration and ensure the server is running.`
+      );
+    }
+    throw error;
+  }
 }
 
 /**

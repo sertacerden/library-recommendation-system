@@ -1,11 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/common/Button';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Input } from '@/components/common/Input';
-import { getBook, getReadingLists, updateReadingList, createReadingList } from '@/services/api';
-import { Book, ReadingList } from '@/types';
-import { formatRating } from '@/utils/formatters';
+import {
+  createReview,
+  getBook,
+  getReadingLists,
+  getReviews,
+  updateReadingList,
+  createReadingList,
+} from '@/services/api';
+import { Book, ReadingList, Review } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { formatDate, formatRating } from '@/utils/formatters';
 import { handleApiError, showSuccess } from '@/utils/errorHandling';
 
 /**
@@ -14,12 +22,23 @@ import { handleApiError, showSuccess } from '@/utils/errorHandling';
 export function BookDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const reviewsSectionRef = useRef<HTMLDivElement | null>(null);
+  const reviewCommentRef = useRef<HTMLTextAreaElement | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [newRating, setNewRating] = useState<number>(5);
+  const [newComment, setNewComment] = useState<string>('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadBook(id);
+      loadReviews(id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -37,6 +56,89 @@ export function BookDetail() {
       handleApiError(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadReviews = async (bookId: string) => {
+    setIsReviewsLoading(true);
+    setReviewsError(null);
+    try {
+      const data = await getReviews(bookId);
+      setReviews(data);
+    } catch (error) {
+      handleApiError(error);
+      setReviewsError(error instanceof Error ? error.message : 'Failed to load reviews');
+      setReviews([]);
+    } finally {
+      setIsReviewsLoading(false);
+    }
+  };
+
+  const scrollToReviews = () => {
+    reviewsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => reviewCommentRef.current?.focus(), 250);
+  };
+
+  const clampRating = (rating: number) => Math.max(1, Math.min(5, rating));
+
+  const averageRating = reviews.length
+    ? reviews.reduce((sum, r) => sum + (typeof r.rating === 'number' ? r.rating : 0), 0) / reviews.length
+    : 0;
+
+  const renderStars = (rating: number) => {
+    const full = Math.round(clampRating(rating));
+    return (
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, idx) => {
+          const filled = idx < full;
+          return (
+            <svg
+              key={idx}
+              className={`w-4 h-4 ${filled ? 'text-amber-500' : 'text-slate-300'}`}
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const handleSubmitReview = async () => {
+    if (!id) return;
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    const rating = clampRating(newRating);
+    const comment = newComment.trim();
+    if (!comment) {
+      setReviewsError('Please write a comment for your review.');
+      scrollToReviews();
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    setReviewsError(null);
+    try {
+      const created = await createReview({
+        bookId: id,
+        rating,
+        comment,
+      });
+      setReviews((prev) => [created, ...prev]);
+      setNewRating(5);
+      setNewComment('');
+      showSuccess('Review submitted!');
+      scrollToReviews();
+    } catch (error) {
+      handleApiError(error);
+      setReviewsError(error instanceof Error ? error.message : 'Failed to submit review');
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -155,7 +257,7 @@ export function BookDetail() {
                     e.currentTarget.src = 'https://via.placeholder.com/300x400?text=No+Cover';
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-violet-900/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div className="absolute inset-0 bg-linear-to-t from-violet-900/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
             </div>
 
@@ -166,7 +268,7 @@ export function BookDetail() {
               <p className="text-xl text-slate-600 mb-6 font-medium">by {book.author}</p>
 
               <div className="flex flex-wrap items-center gap-4 mb-8">
-                <div className="flex items-center bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2 rounded-xl border border-amber-200 shadow-sm">
+                <div className="flex items-center bg-linear-to-r from-amber-50 to-orange-50 px-4 py-2 rounded-xl border border-amber-200 shadow-sm">
                   <svg
                     className="w-5 h-5 text-amber-500 mr-2"
                     fill="currentColor"
@@ -201,7 +303,7 @@ export function BookDetail() {
 
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center">
-                  <span className="w-1 h-6 bg-gradient-to-b from-violet-600 to-indigo-600 rounded-full mr-3"></span>
+                  <span className="w-1 h-6 bg-linear-to-b from-violet-600 to-indigo-600 rounded-full mr-3"></span>
                   Description
                 </h2>
                 <p className="text-slate-700 leading-relaxed text-lg">{book.description}</p>
@@ -230,7 +332,7 @@ export function BookDetail() {
                   </svg>
                   Add to Reading List
                 </Button>
-                <Button variant="outline" size="lg">
+                <Button variant="outline" size="lg" onClick={scrollToReviews}>
                   <svg
                     className="w-5 h-5 mr-2 inline"
                     fill="none"
@@ -339,29 +441,151 @@ export function BookDetail() {
           </div>
         )}
 
-        {/* TODO: Implement reviews section */}
-        <div className="mt-8 glass-effect rounded-3xl shadow-xl border border-white/20 p-8 md:p-12">
+        <div
+          ref={reviewsSectionRef}
+          className="mt-8 glass-effect rounded-3xl shadow-xl border border-white/20 p-8 md:p-12"
+        >
           <h2 className="text-3xl font-bold text-slate-900 mb-6 flex items-center">
-            <span className="w-1 h-8 bg-gradient-to-b from-violet-600 to-indigo-600 rounded-full mr-3"></span>
+            <span className="w-1 h-8 bg-linear-to-b from-violet-600 to-indigo-600 rounded-full mr-3"></span>
             Reviews
           </h2>
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gradient-to-br from-violet-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-violet-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                />
-              </svg>
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center bg-linear-to-r from-amber-50 to-orange-50 px-4 py-2 rounded-xl border border-amber-200 shadow-sm">
+                <span className="text-lg font-bold text-amber-700">
+                  {reviews.length ? formatRating(averageRating) : '—'}
+                </span>
+                <span className="text-sm text-amber-700/80 ml-2">avg</span>
+              </div>
+              <div className="text-slate-600 font-medium">
+                {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
+              </div>
             </div>
-            <p className="text-slate-600 text-lg">Reviews section coming soon...</p>
+
+            <Button variant="outline" size="md" onClick={scrollToReviews} className="w-fit">
+              Write a Review
+            </Button>
+          </div>
+
+          {reviewsError && (
+            <div className="mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 font-medium">
+              {reviewsError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <div className="glass-effect p-6 rounded-2xl border border-white/20">
+                <h3 className="text-xl font-bold text-slate-900 mb-4">Add your review</h3>
+
+                {!isAuthenticated ? (
+                  <div className="text-slate-600">
+                    <p className="mb-4">Log in to write a review.</p>
+                    <Button variant="primary" size="md" onClick={() => navigate('/login')}>
+                      Go to Login
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Rating</label>
+                    <select
+                      className="input-modern mb-5"
+                      value={newRating}
+                      onChange={(e) => setNewRating(clampRating(Number(e.target.value)))}
+                    >
+                      {[5, 4, 3, 2, 1].map((r) => (
+                        <option key={r} value={r}>
+                          {r} {r === 1 ? 'star' : 'stars'}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Comment <span className="text-rose-500 ml-1">*</span>
+                    </label>
+                    <textarea
+                      ref={reviewCommentRef}
+                      className="input-modern min-h-[140px] resize-none"
+                      placeholder="What did you think?"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                    />
+
+                    <div className="mt-5 flex items-center gap-3">
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onClick={handleSubmitReview}
+                        disabled={isSubmittingReview || isReviewsLoading}
+                      >
+                        {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                      </Button>
+                      <button
+                        type="button"
+                        className="text-slate-600 hover:text-violet-600 font-semibold"
+                        onClick={() => {
+                          setNewRating(5);
+                          setNewComment('');
+                          setReviewsError(null);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="lg:col-span-2 space-y-4">
+              {isReviewsLoading ? (
+                <div className="py-10 flex items-center justify-center">
+                  <LoadingSpinner size="md" />
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-linear-to-br from-violet-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-violet-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-slate-600 text-lg">No reviews yet. Be the first!</p>
+                </div>
+              ) : (
+                reviews.map((review) => (
+                  <div
+                    key={review.id}
+                    className="glass-effect p-6 rounded-2xl border border-white/20 hover:shadow-lg transition-shadow"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          {renderStars(review.rating)}
+                          <span className="text-slate-700 font-bold">{formatRating(review.rating)}</span>
+                        </div>
+                        <div className="text-sm text-slate-500 mt-1">{formatDate(review.createdAt)}</div>
+                      </div>
+                      <div className="text-sm text-slate-500 font-medium">
+                        {review.userName?.trim() ||
+                          (user && review.userId === user.id ? user.name : `User ${review.userId.slice(0, 6)}…`)}
+                      </div>
+                    </div>
+                    <p className="text-slate-700 mt-4 leading-relaxed">{review.comment}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

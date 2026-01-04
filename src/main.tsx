@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Amplify } from 'aws-amplify';
+import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import './index.css';
 import 'preline';
 import App from './App.tsx';
@@ -13,6 +14,13 @@ Amplify.configure({
     },
   },
 });
+
+// Dev-only helper for debugging auth in the browser console.
+// Note: you can't `import('aws-amplify/auth')` from DevTools because the browser
+// can't resolve Vite "bare module" specifiers outside the bundler.
+if (import.meta.env.DEV) {
+  window.__amplifyAuth = { fetchAuthSession, getCurrentUser };
+}
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

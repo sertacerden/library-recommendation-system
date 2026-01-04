@@ -588,6 +588,38 @@ export async function createReview(input: {
 }
 
 /**
+ * Delete a review (only the owner can delete)
+ */
+export async function deleteReview(input: { bookId: string; reviewId: string }): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_BASE_URL}/books/${encodeURIComponent(input.bookId)}/reviews/${encodeURIComponent(
+        input.reviewId
+      )}`,
+      {
+        method: 'DELETE',
+        headers,
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Failed to delete review: ${response.status} ${response.statusText}. ${errorText}`
+      );
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Network error: Unable to connect to API at ${API_BASE_URL}. Please check your API configuration and ensure the server is running.`
+      );
+    }
+    throw error;
+  }
+}
+
+/**
  * Get all reading lists (admin only)
  */
 export async function getAllReadingLists(): Promise<ReadingList[]> {

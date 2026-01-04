@@ -5,6 +5,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Input } from '@/components/common/Input';
 import {
   createReview,
+  deleteReview,
   getBook,
   getReadingLists,
   getReviews,
@@ -139,6 +140,31 @@ export function BookDetail() {
       setReviewsError(error instanceof Error ? error.message : 'Failed to submit review');
     } finally {
       setIsSubmittingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async (review: Review) => {
+    if (!id) return;
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (review.userId !== user.id) {
+      setReviewsError('You can only delete your own reviews.');
+      return;
+    }
+
+    const ok = window.confirm('Delete this review?');
+    if (!ok) return;
+
+    setReviewsError(null);
+    try {
+      await deleteReview({ bookId: id, reviewId: review.id });
+      setReviews((prev) => prev.filter((r) => r.id !== review.id));
+      showSuccess('Review deleted.');
+    } catch (error) {
+      handleApiError(error);
+      setReviewsError(error instanceof Error ? error.message : 'Failed to delete review');
     }
   };
 
@@ -576,9 +602,37 @@ export function BookDetail() {
                         </div>
                         <div className="text-sm text-slate-500 mt-1">{formatDate(review.createdAt)}</div>
                       </div>
-                      <div className="text-sm text-slate-500 font-medium">
-                        {review.userName?.trim() ||
-                          (user && review.userId === user.id ? user.name : `User ${review.userId.slice(0, 6)}…`)}
+                      <div className="flex items-center gap-3">
+                        <div className="text-sm text-slate-500 font-medium">
+                          {review.userName?.trim() ||
+                            (user && review.userId === user.id
+                              ? user.name
+                              : `User ${review.userId.slice(0, 6)}…`)}
+                        </div>
+                        {user && review.userId === user.id && (
+                          <button
+                            type="button"
+                            className="p-2 rounded-lg text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                            onClick={() => handleDeleteReview(review)}
+                            aria-label="Delete review"
+                            title="Delete review"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3m-4 0h14"
+                              />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </div>
                     <p className="text-slate-700 mt-4 leading-relaxed">{review.comment}</p>

@@ -11,8 +11,10 @@ import {
   deleteBook,
   getAllReadingLists,
   getUsers,
+  getReviews,
+  adminDeleteReview,
 } from '@/services/api';
-import { Book } from '@/types';
+import { Book, Review } from '@/types';
 import { handleApiError, showSuccess } from '@/utils/errorHandling';
 
 /**
@@ -41,6 +43,12 @@ export function Admin() {
   const [readingListCount, setReadingListCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
 
+  // Reviews management state
+  const [activeTab, setActiveTab] = useState<'books' | 'reviews'>('books');
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(false);
+  const [reviewsPage, setReviewsPage] = useState(1);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -68,28 +76,39 @@ export function Admin() {
   const pageEndIndex = Math.min(pageStartIndex + BOOKS_PER_PAGE, filteredBooks.length);
   const paginatedBooks = filteredBooks.slice(pageStartIndex, pageEndIndex);
 
+  const REVIEWS_PER_PAGE = 10;
+  const totalReviewPages = Math.max(1, Math.ceil(reviews.length / REVIEWS_PER_PAGE));
+  const clampedReviewsPage = Math.min(Math.max(reviewsPage, 1), totalReviewPages);
+  const reviewsStartIndex = (clampedReviewsPage - 1) * REVIEWS_PER_PAGE;
+  const reviewsEndIndex = Math.min(reviewsStartIndex + REVIEWS_PER_PAGE, reviews.length);
+  const paginatedReviews = reviews.slice(reviewsStartIndex, reviewsEndIndex);
+
   useEffect(() => {
     setCurrentPage((prev) => Math.min(Math.max(prev, 1), totalPages));
   }, [totalPages]);
 
   useEffect(() => {
+    setReviewsPage((prev) => Math.min(Math.max(prev, 1), totalReviewPages));
+  }, [totalReviewPages]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [titleSearch]);
 
-  const getVisiblePages = (): Array<number | '...'> => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
+  const getVisiblePages = (current: number, total: number): Array<number | '...'> => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
     }
 
     const pages: Array<number | '...'> = [];
-    const left = Math.max(2, clampedCurrentPage - 1);
-    const right = Math.min(totalPages - 1, clampedCurrentPage + 1);
+    const left = Math.max(2, current - 1);
+    const right = Math.min(total - 1, current + 1);
 
     pages.push(1);
     if (left > 2) pages.push('...');
     for (let p = left; p <= right; p++) pages.push(p);
-    if (right < totalPages - 1) pages.push('...');
-    pages.push(totalPages);
+    if (right < total - 1) pages.push('...');
+    pages.push(total);
 
     return pages;
   };
@@ -221,6 +240,73 @@ export function Admin() {
     }
   };
 
+  const handleTabChange = (tab: 'books' | 'reviews') => {
+    setActiveTab(tab);
+    if (tab === 'reviews') {
+      loadReviews();
+    }
+  };
+
+  const loadReviews = async () => {
+    setIsReviewsLoading(true);
+    try {
+      // Limit to first 20 books to prevent API flooding until a dedicated endpoint exists
+      const limit = 20;
+      const targetBooks = books.slice(0, limit);
+      const allReviews: Review[] = [];
+
+      // Fetch in parallel batches
+      const batchSize = 8;
+      for (let i = 0; i < targetBooks.length; i += batchSize) {
+        const batch = targetBooks.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map((book) =>
+            getReviews(book.id).catch((err) => {
+              console.warn(`Failed to fetch reviews for book ${book.id}:`, err);
+              return [];
+            })
+          )
+        );
+        batchResults.forEach((r) => allReviews.push(...r));
+      }
+
+      const sortedReviews = allReviews.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setReviews(sortedReviews);
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setIsReviewsLoading(false);
+    }
+  };
+
+  const handleDeleteReview = async (bookId: string, reviewId: string) => {
+    if (!confirm('Are you sure you want to delete this review?')) return;
+    try {
+      await adminDeleteReview({ bookId, reviewId });
+      setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+      showSuccess('Review deleted successfully');
+    } catch (error) {
+      // If the review is already gone (404), treat it as success and remove from UI
+      if (error instanceof Error && error.message.includes('404')) {
+        setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+        showSuccess('Review deleted (was already missing)');
+        return;
+      }
+
+      // Check for specific backend misconfiguration error
+      if (error instanceof Error && error.message.includes('Missing path param')) {
+        alert(
+          'Backend Error: The Admin Delete API is missing the {reviewId} path parameter configuration in API Gateway. Please contact the backend developer.'
+        );
+        return;
+      }
+
+      handleApiError(error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -261,89 +347,242 @@ export function Admin() {
 
         {/* Books Management */}
         <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200 p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Manage Books</h2>
-            <Button variant="primary" onClick={openAddBookOffcanvas}>
-              Add New Book
-            </Button>
+          <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+              <button
+                onClick={() => handleTabChange('books')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  activeTab === 'books'
+                    ? 'bg-white text-violet-700 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Manage Books
+              </button>
+              <button
+                onClick={() => handleTabChange('reviews')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  activeTab === 'reviews'
+                    ? 'bg-white text-violet-700 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Manage Reviews
+              </button>
+            </div>
+
+            {activeTab === 'books' && (
+              <Button variant="primary" onClick={openAddBookOffcanvas}>
+                Add New Book
+              </Button>
+            )}
           </div>
 
-          <div className="max-w-md">
-            <Input
-              label="Search by title"
-              type="text"
-              value={titleSearch}
-              onChange={(e) => setTitleSearch(e.target.value)}
-              placeholder="Type a book title..."
-            />
-          </div>
+          {activeTab === 'books' ? (
+            <>
+              <div className="max-w-md">
+                <Input
+                  label="Search by title"
+                  type="text"
+                  value={titleSearch}
+                  onChange={(e) => setTitleSearch(e.target.value)}
+                  placeholder="Type a book title..."
+                />
+              </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4">Title</th>
-                  <th className="text-left py-3 px-4">Author</th>
-                  <th className="text-left py-3 px-4">Genre</th>
-                  <th className="text-left py-3 px-4">Rating</th>
-                  <th className="text-left py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedBooks.length === 0 ? (
-                  <tr>
-                    <td className="py-6 px-4 text-slate-600 text-center" colSpan={5}>
-                      {titleSearch.trim() ? 'No books match that title' : 'No books found'}
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedBooks.map((book) => (
-                    <tr key={book.id} className="border-b hover:bg-slate-50">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          {book.coverImage ? (
-                            <img
-                              src={book.coverImage}
-                              alt={book.title}
-                              className="h-10 w-8 object-cover rounded shadow-sm border border-slate-200"
-                            />
-                          ) : (
-                            <div className="h-10 w-8 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
-                              <span className="text-xs text-slate-400">No Img</span>
-                            </div>
-                          )}
-                          <span className="font-medium text-slate-900">{book.title}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">{book.author}</td>
-                      <td className="py-3 px-4">{book.genre}</td>
-                      <td className="py-3 px-4">{book.rating}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex gap-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => openEditBookOffcanvas(book)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleDeleteBook(book.id)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
+              <div className="overflow-x-auto mt-4">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4">Title</th>
+                      <th className="text-left py-3 px-4">Author</th>
+                      <th className="text-left py-3 px-4">Genre</th>
+                      <th className="text-left py-3 px-4">Rating</th>
+                      <th className="text-left py-3 px-4">Actions</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {paginatedBooks.length === 0 ? (
+                      <tr>
+                        <td className="py-6 px-4 text-slate-600 text-center" colSpan={5}>
+                          {titleSearch.trim() ? 'No books match that title' : 'No books found'}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedBooks.map((book) => (
+                        <tr key={book.id} className="border-b hover:bg-slate-50">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              {book.coverImage ? (
+                                <img
+                                  src={book.coverImage}
+                                  alt={book.title}
+                                  className="h-10 w-8 object-cover rounded shadow-sm border border-slate-200"
+                                />
+                              ) : (
+                                <div className="h-10 w-8 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
+                                  <span className="text-xs text-slate-400">No Img</span>
+                                </div>
+                              )}
+                              <span className="font-medium text-slate-900">{book.title}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">{book.author}</td>
+                          <td className="py-3 px-4">{book.genre}</td>
+                          <td className="py-3 px-4">{book.rating}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => openEditBookOffcanvas(book)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => handleDeleteBook(book.id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            /* Reviews Table */
+            <div className="overflow-x-auto">
+              {isReviewsLoading ? (
+                <div className="flex justify-center py-12">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-4">Book</th>
+                        <th className="text-left py-3 px-4">User</th>
+                        <th className="text-left py-3 px-4">Review</th>
+                        <th className="text-left py-3 px-4">Rating</th>
+                        <th className="text-left py-3 px-4">Date</th>
+                        <th className="text-left py-3 px-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedReviews.length === 0 ? (
+                        <tr>
+                          <td className="py-6 px-4 text-slate-600 text-center" colSpan={6}>
+                            No reviews found.
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedReviews.map((review) => {
+                          const book = books.find((b) => b.id === review.bookId);
+                          return (
+                            <tr key={review.id} className="border-b hover:bg-slate-50">
+                              <td className="py-3 px-4">
+                                <span className="font-medium text-slate-900">
+                                  {book?.title || 'Unknown Book'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="text-sm">{review.userName || 'Anonymous'}</span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <p
+                                  className="text-sm text-slate-600 max-w-xs truncate"
+                                  title={review.comment}
+                                >
+                                  {review.comment}
+                                </p>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="inline-flex items-center px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200">
+                                  ★ {review.rating}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-slate-500">
+                                {new Date(review.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="py-3 px-4">
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleDeleteReview(review.bookId, review.id)}
+                                >
+                                  Delete
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
 
-          {/* Pagination */}
+                  {/* Reviews Pagination */}
+                  <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <p className="text-sm text-slate-600">
+                      {reviews.length === 0
+                        ? 'Showing 0 of 0'
+                        : `Showing ${reviewsStartIndex + 1}-${reviewsEndIndex} of ${
+                            reviews.length
+                          }`}
+                    </p>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={clampedReviewsPage === 1}
+                        onClick={() => setReviewsPage(clampedReviewsPage - 1)}
+                      >
+                        Prev
+                      </Button>
+
+                      {getVisiblePages(clampedReviewsPage, totalReviewPages).map((p, idx) =>
+                        p === '...' ? (
+                          <span key={`r-ellipsis-${idx}`} className="px-2 text-slate-500">
+                            ...
+                          </span>
+                        ) : (
+                          <Button
+                            key={`r-page-${p}`}
+                            variant={p === clampedReviewsPage ? 'primary' : 'secondary'}
+                            size="sm"
+                            aria-current={p === clampedReviewsPage ? 'page' : undefined}
+                            onClick={() => setReviewsPage(p as number)}
+                          >
+                            {p}
+                          </Button>
+                        )
+                      )}
+
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={clampedReviewsPage === totalReviewPages}
+                        onClick={() => setReviewsPage(clampedReviewsPage + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Pagination (Only for books) */}
+        {activeTab === 'books' && (
           <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <p className="text-sm text-slate-600">
               {filteredBooks.length === 0
@@ -361,7 +600,7 @@ export function Admin() {
                 Prev
               </Button>
 
-              {getVisiblePages().map((p, idx) =>
+              {getVisiblePages(clampedCurrentPage, totalPages).map((p, idx) =>
                 p === '...' ? (
                   <span key={`ellipsis-${idx}`} className="px-2 text-slate-500">
                     ...
@@ -372,7 +611,7 @@ export function Admin() {
                     variant={p === clampedCurrentPage ? 'primary' : 'secondary'}
                     size="sm"
                     aria-current={p === clampedCurrentPage ? 'page' : undefined}
-                    onClick={() => setCurrentPage(p)}
+                    onClick={() => setCurrentPage(p as number)}
                   >
                     {p}
                   </Button>
@@ -389,7 +628,7 @@ export function Admin() {
               </Button>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Add Book Offcanvas */}
         <div

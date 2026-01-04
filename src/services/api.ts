@@ -15,8 +15,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     const tokenType = (import.meta.env.VITE_AUTH_TOKEN_TYPE || 'id').toLowerCase();
     const token =
       tokenType === 'access'
-        ? session.tokens?.accessToken?.toString() ?? session.tokens?.idToken?.toString()
-        : session.tokens?.idToken?.toString() ?? session.tokens?.accessToken?.toString();
+        ? (session.tokens?.accessToken?.toString() ?? session.tokens?.idToken?.toString())
+        : (session.tokens?.idToken?.toString() ?? session.tokens?.accessToken?.toString());
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -218,7 +218,8 @@ export async function getRecommendations(query: string): Promise<Recommendation[
     }
 
     const data = await response.json();
-    const payload: unknown = isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
+    const payload: unknown =
+      isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
 
     if (!isObject(payload) || !Array.isArray(payload.recommendations)) {
       return [];
@@ -450,9 +451,12 @@ export async function getReviews(bookId: string): Promise<Review[]> {
   try {
     // Some deployments protect GET reviews behind Cognito as well, so include auth headers.
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/books/${encodeURIComponent(bookId)}/reviews?limit=50`, {
-      headers,
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/books/${encodeURIComponent(bookId)}/reviews?limit=50`,
+      {
+        headers,
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
@@ -462,7 +466,8 @@ export async function getReviews(bookId: string): Promise<Review[]> {
     }
 
     const data = await response.json();
-    const payload: unknown = isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
+    const payload: unknown =
+      isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
 
     const itemsRaw: unknown =
       isObject(payload) && Array.isArray(payload.items) ? payload.items : payload;
@@ -524,14 +529,17 @@ export async function createReview(input: {
 }): Promise<Review> {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/books/${encodeURIComponent(input.bookId)}/reviews`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        rating: input.rating,
-        comment: input.comment,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/books/${encodeURIComponent(input.bookId)}/reviews`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          rating: input.rating,
+          comment: input.comment,
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
@@ -541,7 +549,8 @@ export async function createReview(input: {
     }
 
     const data = await response.json();
-    const payload: unknown = isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
+    const payload: unknown =
+      isObject(data) && typeof data.body === 'string' ? JSON.parse(data.body) : data;
 
     if (!isObject(payload)) {
       throw new Error('Invalid create review response');
@@ -595,6 +604,41 @@ export async function deleteReview(input: { bookId: string; reviewId: string }):
     const headers = await getAuthHeaders();
     const response = await fetch(
       `${API_BASE_URL}/books/${encodeURIComponent(input.bookId)}/reviews/${encodeURIComponent(
+        input.reviewId
+      )}`,
+      {
+        method: 'DELETE',
+        headers,
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Failed to delete review: ${response.status} ${response.statusText}. ${errorText}`
+      );
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Network error: Unable to connect to API at ${API_BASE_URL}. Please check your API configuration and ensure the server is running.`
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Delete a review (admin only)
+ */
+export async function adminDeleteReview(input: {
+  bookId: string;
+  reviewId: string;
+}): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_BASE_URL}/admin/books/${encodeURIComponent(input.bookId)}/reviews/${encodeURIComponent(
         input.reviewId
       )}`,
       {

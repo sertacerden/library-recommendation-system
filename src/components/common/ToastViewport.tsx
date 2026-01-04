@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { onToast, type ToastPayload, type ToastVariant } from '@/utils/toast';
 
 type ToastItem = ToastPayload & { id: string };
@@ -11,7 +11,7 @@ function makeId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function variantStyles(variant: ToastVariant): { container: string; icon: JSX.Element } {
+function variantStyles(variant: ToastVariant): { container: string; icon: ReactElement } {
   switch (variant) {
     case 'success':
       return {

@@ -3,6 +3,7 @@ import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { CoverImageUpload } from '@/components/common/CoverImageUpload';
+import { CountUp } from '@/components/common/CountUp';
 import {
   getBooks,
   createBook,
@@ -211,15 +212,21 @@ export function Admin() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-lg font-semibold mb-2 opacity-90">Total Books</h3>
-            <p className="text-5xl font-bold">{books.length}</p>
+            <p className="text-5xl font-bold">
+              <CountUp end={books.length} duration={1500} />
+            </p>
           </div>
           <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-lg font-semibold mb-2 opacity-90">Total Users</h3>
-            <p className="text-5xl font-bold">{userCount}</p>
+            <p className="text-5xl font-bold">
+              <CountUp end={userCount} duration={1500} />
+            </p>
           </div>
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-lg font-semibold mb-2 opacity-90">Active Reading Lists</h3>
-            <p className="text-5xl font-bold">{readingListCount}</p>
+            <p className="text-5xl font-bold">
+              <CountUp end={readingListCount} duration={1500} />
+            </p>
           </div>
         </div>
 
@@ -375,25 +382,10 @@ export function Admin() {
             <h3 className="font-bold text-gray-800">Add New Book</h3>
             <button
               type="button"
-              className="flex justify-center items-center size-7 text-sm font-semibold rounded-full border border-transparent text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none"
+              className="px-3 py-1 text-sm font-semibold text-gray-800 hover:bg-gray-100 rounded-lg transition-all active:scale-95"
               onClick={closeAddBookOffcanvas}
             >
-              <span className="sr-only">Close modal</span>
-              <svg
-                className="shrink-0 size-4"
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 6 6 18"></path>
-                <path d="m6 6 18 18"></path>
-              </svg>
+              Close
             </button>
           </div>
           <div className="p-4 space-y-4 overflow-y-auto h-[calc(100%-60px)] pb-8">
@@ -487,25 +479,10 @@ export function Admin() {
             <h3 className="font-bold text-gray-800">Edit Book</h3>
             <button
               type="button"
-              className="flex justify-center items-center size-7 text-sm font-semibold rounded-full border border-transparent text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none"
+              className="px-3 py-1 text-sm font-semibold text-gray-800 hover:bg-gray-100 rounded-lg transition-all active:scale-95"
               onClick={closeEditBookOffcanvas}
             >
-              <span className="sr-only">Close modal</span>
-              <svg
-                className="shrink-0 size-4"
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 6 6 18"></path>
-                <path d="m6 6 18 18"></path>
-              </svg>
+              Close
             </button>
           </div>
           <div className="p-4 space-y-4 overflow-y-auto h-[calc(100%-60px)] pb-8">
@@ -553,12 +530,7 @@ export function Admin() {
                   />
                 </div>
 
-                <CoverImageUpload
-                  label="Cover Image"
-                  value={editBook.coverImage || ''}
-                  resetSignal={editCoverUploadReset}
-                  onChange={(nextValue) => setEditBook({ ...editBook, coverImage: nextValue })}
-                />
+
 
                 <Input
                   label="Rating"

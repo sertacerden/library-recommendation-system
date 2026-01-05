@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -53,21 +53,6 @@ export function Admin() {
   const [isReviewsLoading, setIsReviewsLoading] = useState(false);
   const [reviewsPage, setReviewsPage] = useState(1);
 
-  const averageRatingByBookId = useMemo(() => {
-    const acc = new Map<string, { sum: number; count: number }>();
-    for (const r of reviews) {
-      const cur = acc.get(r.bookId) ?? { sum: 0, count: 0 };
-      cur.sum += r.rating;
-      cur.count += 1;
-      acc.set(r.bookId, cur);
-    }
-    const avg = new Map<string, number>();
-    for (const [bookId, { sum, count }] of acc.entries()) {
-      if (count > 0) avg.set(bookId, sum / count);
-    }
-    return avg;
-  }, [reviews]);
-
   const fetchAllReviews = useCallback(async (): Promise<Review[]> => {
     const all: Review[] = [];
     let nextToken: string | undefined = undefined;
@@ -121,10 +106,9 @@ export function Admin() {
     window.HSOverlay?.close(selector);
 
     // Final fallback: hard-hide element
-    const el =
-      selector.startsWith('#')
-        ? document.getElementById(selector.slice(1))
-        : (document.querySelector(selector) as HTMLElement | null);
+    const el = selector.startsWith('#')
+      ? document.getElementById(selector.slice(1))
+      : (document.querySelector(selector) as HTMLElement | null);
     el?.classList.add('hidden');
     el?.classList.remove('open', 'opened');
   }, []);
@@ -313,7 +297,7 @@ export function Admin() {
         genre: editBook.genre,
         description: editBook.description,
         coverImage: editBook.coverImage,
-        rating: 0,
+        rating: editBook.rating,
         publishedYear: editBook.publishedYear,
         isbn: editBook.isbn,
       };
@@ -540,16 +524,17 @@ export function Admin() {
                                   <span className="text-xs text-slate-400">No Img</span>
                                 </div>
                               )}
-                              <Link to={`/books/${book.id}`} className="font-medium text-slate-900 hover:underline">
+                              <Link
+                                to={`/books/${book.id}`}
+                                className="font-medium text-slate-900 hover:underline"
+                              >
                                 {book.title}
                               </Link>
                             </div>
                           </td>
                           <td className="py-3 px-4">{book.author}</td>
                           <td className="py-3 px-4">{book.genre}</td>
-                          <td className="py-3 px-4">
-                            {formatRatingOrNR(averageRatingByBookId.get(book.id) ?? null)}
-                          </td>
+                          <td className="py-3 px-4">{formatRatingOrNR(book.rating)}</td>
                           <td className="py-3 px-4">
                             <div className="flex gap-2">
                               <Button

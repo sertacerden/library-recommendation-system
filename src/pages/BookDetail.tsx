@@ -14,7 +14,7 @@ import {
 } from '@/services/api';
 import { Book, ReadingList, Review } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
-import { averageRating, formatDate, formatRatingOrNR, formatRating } from '@/utils/formatters';
+import { formatDate, formatRatingOrNR, formatRating } from '@/utils/formatters';
 import { handleApiError, showSuccess, showWarning } from '@/utils/errorHandling';
 import { confirmPopup } from '@/utils/confirm';
 
@@ -82,8 +82,6 @@ export function BookDetail() {
   };
 
   const clampRating = (rating: number) => Math.max(1, Math.min(5, rating));
-
-  const averageReviewRating = averageRating(reviews.map((r) => r.rating));
 
   const renderStars = (rating: number) => {
     const full = Math.round(clampRating(rating));
@@ -308,7 +306,7 @@ export function BookDetail() {
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
                   <span className="text-lg font-bold text-amber-700">
-                    {formatRatingOrNR(averageReviewRating)}
+                    {formatRatingOrNR(book.rating)}
                   </span>
                 </div>
 
@@ -388,7 +386,9 @@ export function BookDetail() {
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/50" onClick={closeAddModal}></div>
             <div className="relative z-10 bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-              <h3 className="text-lg font-bold mb-3">Add &quot;{book.title}&quot; to reading list</h3>
+              <h3 className="text-lg font-bold mb-3">
+                Add &quot;{book.title}&quot; to reading list
+              </h3>
 
               {isListsLoading ? (
                 <div className="flex items-center justify-center py-6">
@@ -398,7 +398,9 @@ export function BookDetail() {
                 <div>
                   {lists.length === 0 ? (
                     <div>
-                      <p className="text-slate-600 mb-3">You don't have any reading lists yet. Create one now:</p>
+                      <p className="text-slate-600 mb-3">
+                        You don't have any reading lists yet. Create one now:
+                      </p>
                       <Input
                         label="List Name"
                         type="text"
@@ -417,7 +419,9 @@ export function BookDetail() {
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Choose a list</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Choose a list
+                      </label>
                       <select
                         value={selectedListId}
                         onChange={(e) => setSelectedListId(e.target.value)}
@@ -436,7 +440,8 @@ export function BookDetail() {
                           variant="primary"
                           onClick={() => handleAddToExistingList()}
                           disabled={
-                            !selectedListId || lists.find((l) => l.id === selectedListId)?.bookIds.includes(book.id)
+                            !selectedListId ||
+                            lists.find((l) => l.id === selectedListId)?.bookIds.includes(book.id)
                           }
                         >
                           Add to Selected
@@ -485,7 +490,7 @@ export function BookDetail() {
             <div className="flex items-center gap-3">
               <div className="flex items-center bg-linear-to-r from-amber-50 to-orange-50 px-4 py-2 rounded-xl border border-amber-200 shadow-sm">
                 <span className="text-lg font-bold text-amber-700">
-                  {formatRatingOrNR(averageReviewRating)}
+                  {formatRatingOrNR(book.rating)}
                 </span>
                 <span className="text-sm text-amber-700/80 ml-2">avg</span>
               </div>
@@ -519,7 +524,9 @@ export function BookDetail() {
                   </div>
                 ) : (
                   <>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Rating</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Rating
+                    </label>
                     <select
                       className="input-modern mb-5"
                       value={newRating}
@@ -603,9 +610,13 @@ export function BookDetail() {
                       <div>
                         <div className="flex items-center gap-3">
                           {renderStars(review.rating)}
-                          <span className="text-slate-700 font-bold">{formatRating(review.rating)}</span>
+                          <span className="text-slate-700 font-bold">
+                            {formatRating(review.rating)}
+                          </span>
                         </div>
-                        <div className="text-sm text-slate-500 mt-1">{formatDate(review.createdAt)}</div>
+                        <div className="text-sm text-slate-500 mt-1">
+                          {formatDate(review.createdAt)}
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-sm text-slate-500 font-medium">

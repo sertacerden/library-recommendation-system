@@ -51,7 +51,10 @@ export function BookSearch({
                 type="text"
                 placeholder="Search books by title, author, or genre..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  onSearch(e.target.value);
+                }}
                 className="input-modern pl-12"
               />
               <svg

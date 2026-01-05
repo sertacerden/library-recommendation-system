@@ -6,7 +6,6 @@ import { BookCard } from './BookCard';
  */
 interface BookGridProps {
   books: Book[];
-  reviewAverageByBookId?: Record<string, number | null | undefined>;
 }
 
 /**
@@ -15,7 +14,7 @@ interface BookGridProps {
  * @example
  * <BookGrid books={books} />
  */
-export function BookGrid({ books, reviewAverageByBookId }: BookGridProps) {
+export function BookGrid({ books }: BookGridProps) {
   if (books.length === 0) {
     return (
       <div className="text-center py-12">
@@ -41,11 +40,7 @@ export function BookGrid({ books, reviewAverageByBookId }: BookGridProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {books.map((book) => (
-        <BookCard
-          key={book.id}
-          book={book}
-          reviewAverageRating={reviewAverageByBookId ? reviewAverageByBookId[book.id] : undefined}
-        />
+        <BookCard key={book.id} book={book} />
       ))}
     </div>
   );

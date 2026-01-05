@@ -4,9 +4,10 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { SearchableMultiSelect } from '@/components/common/SearchableMultiSelect';
-import { getBooks, getReadingList, updateReadingList } from '@/services/api';
+import { deleteReadingList, getBooks, getReadingList, updateReadingList } from '@/services/api';
 import type { Book, ReadingList } from '@/types';
-import { handleApiError } from '@/utils/errorHandling';
+import { handleApiError, showSuccess } from '@/utils/errorHandling';
+import { confirmPopup } from '@/utils/confirm';
 
 /**
  * ReadingListDetail page component
@@ -30,6 +31,7 @@ export function ReadingListDetail() {
   const [editDescription, setEditDescription] = useState('');
   const [editBookIds, setEditBookIds] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -139,6 +141,33 @@ export function ReadingListDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!id) return;
+
+    const ok = await confirmPopup({
+      title: 'Delete reading list?',
+      message: 'Are you sure you want to delete this reading list?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!ok) return;
+
+    setIsDeleting(true);
+    setError(null);
+    try {
+      await deleteReadingList(id);
+      window.dispatchEvent(new Event('reading-lists-changed'));
+      showSuccess('Reading list deleted successfully!');
+      navigate('/reading-lists', { replace: true });
+    } catch (e) {
+      handleApiError(e);
+      setError(e instanceof Error ? e.message : 'Failed to delete reading list');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const toggleCompleted = async (bookId: string) => {
     if (!id || !list) return;
 
@@ -220,6 +249,14 @@ export function ReadingListDetail() {
                 className="w-full justify-center whitespace-nowrap"
               >
                 Edit Reading List
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleDelete}
+                className="w-full justify-center whitespace-nowrap"
+                disabled={isDeleting || isSavingEdit}
+              >
+                {isDeleting ? 'Deleting…' : 'Delete Reading List'}
               </Button>
             </div>
           </div>

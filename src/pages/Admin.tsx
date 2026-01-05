@@ -18,6 +18,7 @@ import { Book, Review } from '@/types';
 import { handleApiError, showSuccess, showWarning } from '@/utils/errorHandling';
 import { confirmPopup } from '@/utils/confirm';
 import { formatRatingOrNR } from '@/utils/formatters';
+import { Link } from 'react-router-dom';
 
 /**
  * Admin page component for managing books and viewing metrics
@@ -472,7 +473,9 @@ export function Admin() {
                                   <span className="text-xs text-slate-400">No Img</span>
                                 </div>
                               )}
-                              <span className="font-medium text-slate-900">{book.title}</span>
+                              <Link to={`/books/${book.id}`} className="font-medium text-slate-900 hover:underline">
+                                {book.title}
+                              </Link>
                             </div>
                           </td>
                           <td className="py-3 px-4">{book.author}</td>

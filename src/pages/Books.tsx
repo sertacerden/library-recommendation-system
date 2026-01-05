@@ -7,6 +7,7 @@ import { Book } from '@/types';
 import { handleApiError } from '@/utils/errorHandling';
 import { averageRating } from '@/utils/formatters';
 import { getCenturyFromYear, Century } from '@/enums/years';
+import { GENRE_OPTIONS } from '@/enums/genres';
 
 /**
  * Helper function to sort books based on criteria
@@ -43,10 +44,7 @@ export function Books() {
   >({});
 
   // Derive unique values for filters
-  const uniqueGenres = useMemo(
-    () => Array.from(new Set(books.map((b) => b.genre))).sort(),
-    [books]
-  );
+  const uniqueGenres = useMemo(() => GENRE_OPTIONS.sort(), []);
   const uniqueCenturies = useMemo(() => {
     // Return all values from the Century enum
     return Object.values(Century);

@@ -9,6 +9,17 @@ export enum Genre {
   History = 'History',
   Thriller = 'Thriller',
   YoungAdult = 'Young Adult',
+  Horror = 'Horror',
+  Poetry = 'Poetry',
+  SelfImprovement = 'Self Improvement',
+  Adventure = 'Adventure',
+  Drama = 'Drama',
+  Comedy = 'Comedy',
+  Action = 'Action',
+  Crime = 'Crime',
+  Gothic = 'Gothic',
+  Epic = 'Epic',
+  CrimeFiction = 'Crime Fiction',
 }
 
 export const GENRE_OPTIONS: string[] = Object.values(Genre);

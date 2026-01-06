@@ -1,0 +1,733 @@
+openapi: 3.0.3
+info:
+  title: Library Recommendation System API
+  version: 1.0.0
+  description: |
+    OpenAPI (Swagger) specification for the Library Recommendation System backend.
+
+    Notes:
+    - The frontend base URL is configured via `VITE_API_BASE_URL`.
+    - Some list endpoints may return either a bare array **or** a paginated object `{ items, nextToken }` depending on the backend implementation.
+    - Auth is via `Authorization` header with a JWT (often `Bearer <token>`).
+servers:
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com/{stage}
+    description: AWS API Gateway (REST) invoke URL (edit variables to match your deployment)
+    variables:
+      apiId:
+        default: muk88a6twh
+        description: API Gateway API id (e.g., abc123)
+      region:
+        default: us-east-1
+        description: AWS region
+      stage:
+        default: dev
+        description: API Gateway stage name
+  - url: http://localhost:3000/api
+    description: Local development server (matches frontend fallback in src/services/api.ts)
+tags:
+  - name: Books
+  - name: ReadingLists
+  - name: Reviews
+  - name: Recommendations
+  - name: Admin
+paths:
+  /books:
+    get:
+      tags: [Books]
+      summary: List books
+      description: |
+        List books. Backend may support pagination with `limit` and `nextToken`.
+        The frontend is tolerant to either:
+        - a bare array of `Book`
+        - a paginated object `{ items: Book[], nextToken?: string }`
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/nextToken'
+      responses:
+        '200':
+          description: Books
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/Book'
+                  - $ref: '#/components/schemas/PaginatedBooks'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Books]
+      summary: Create a new book
+      description: Requires authentication (admin).
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookRequest'
+      responses:
+        '200':
+          description: Created book
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /books/{id}:
+    parameters:
+      - $ref: '#/components/parameters/bookId'
+    get:
+      tags: [Books]
+      summary: Get a book by id
+      responses:
+        '200':
+          description: Book
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [Books]
+      summary: Update a book by id
+      description: Requires authentication (admin).
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBookRequest'
+      responses:
+        '200':
+          description: Updated book
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [Books]
+      summary: Delete a book by id
+      description: Requires authentication (admin).
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '200':
+          description: Deleted
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /recommendations:
+    post:
+      tags: [Recommendations]
+      summary: Get AI recommendations
+      description: Requires authentication.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationsRequest'
+      responses:
+        '200':
+          description: Recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /reading-lists:
+    get:
+      tags: [ReadingLists]
+      summary: List current user's reading lists
+      description: Requires authentication.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '200':
+          description: Reading lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadingList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [ReadingLists]
+      summary: Create a reading list
+      description: Requires authentication.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReadingListRequest'
+      responses:
+        '200':
+          description: Created reading list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /reading-lists/{id}:
+    parameters:
+      - $ref: '#/components/parameters/readingListId'
+    get:
+      tags: [ReadingLists]
+      summary: Get a reading list by id (current user)
+      description: Requires authentication.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '200':
+          description: Reading list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [ReadingLists]
+      summary: Update a reading list
+      description: Requires authentication.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReadingListRequest'
+      responses:
+        '200':
+          description: Updated reading list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [ReadingLists]
+      summary: Delete a reading list
+      description: Requires authentication.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /books/{bookId}/reviews:
+    parameters:
+      - $ref: '#/components/parameters/bookIdPath'
+    get:
+      tags: [Reviews]
+      summary: List reviews for a book
+      description: |
+        Lists reviews for a given book.
+        Implementations vary: some backends require auth, others allow public reads.
+      parameters:
+        - $ref: '#/components/parameters/authorizationOptional'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/nextToken'
+      responses:
+        '200':
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+                  - $ref: '#/components/schemas/PaginatedReviews'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Reviews]
+      summary: Create a review for a book
+      description: Requires authentication.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '200':
+          description: Created review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /books/{bookId}/reviews/{reviewId}:
+    parameters:
+      - $ref: '#/components/parameters/bookIdPath'
+      - $ref: '#/components/parameters/reviewId'
+    delete:
+      tags: [Reviews]
+      summary: Delete own review
+      description: Requires authentication (and typically ownership checks on backend).
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '200':
+          description: Deleted
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/reviews:
+    get:
+      tags: [Admin]
+      summary: List all reviews (admin)
+      description: Requires authentication (admin). Supports pagination via `limit` and `nextToken`.
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/nextToken'
+      responses:
+        '200':
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReviews'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/books/{bookId}/reviews/{reviewId}:
+    parameters:
+      - $ref: '#/components/parameters/bookIdPath'
+      - $ref: '#/components/parameters/reviewId'
+    delete:
+      tags: [Admin]
+      summary: Delete any review (admin)
+      description: Requires authentication (admin).
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '200':
+          description: Deleted
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/reading-lists:
+    get:
+      tags: [Admin]
+      summary: List all reading lists (admin)
+      description: Requires authentication (admin).
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '200':
+          description: Reading lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadingList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List users (admin)
+      description: Requires authentication (admin).
+      parameters:
+        - $ref: '#/components/parameters/authorization'
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    authorization:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+      description: 'Bearer token. Format: `Bearer <JWT>`'
+      example: 'Bearer eyJhbGciOi...'
+    authorizationOptional:
+      name: Authorization
+      in: header
+      required: false
+      schema:
+        type: string
+      description: 'Optional Bearer token. Format: `Bearer <JWT>`'
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+      description: Max number of items to return (backend dependent).
+    nextToken:
+      name: nextToken
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Pagination token returned from a previous request.
+    bookId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Book id
+    readingListId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Reading list id
+    bookIdPath:
+      name: bookId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Book id
+    reviewId:
+      name: reviewId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Review id
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        error:
+          type: string
+          description: Error message (common in Lambda/APIGW examples)
+        message:
+          type: string
+          description: Alternative error field used by some implementations
+      example:
+        error: Failed to fetch books
+    Book:
+      type: object
+      additionalProperties: false
+      required: [id, title, author, genre, description, coverImage, rating, publishedYear, isbn]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        author: { type: string }
+        genre: { type: string }
+        description: { type: string }
+        coverImage: { type: string, description: Path or URL to cover image }
+        rating: { type: number }
+        publishedYear: { type: integer }
+        isbn: { type: string }
+    CreateBookRequest:
+      type: object
+      additionalProperties: false
+      required: [title, author, genre, description, coverImage, rating, publishedYear, isbn]
+      properties:
+        title: { type: string }
+        author: { type: string }
+        genre: { type: string }
+        description: { type: string }
+        coverImage: { type: string }
+        rating: { type: number }
+        publishedYear: { type: integer }
+        isbn: { type: string }
+    UpdateBookRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string }
+        author: { type: string }
+        genre: { type: string }
+        description: { type: string }
+        coverImage: { type: string }
+        rating: { type: number }
+        publishedYear: { type: integer }
+        isbn: { type: string }
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, name, role, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        role:
+          type: string
+          enum: [user, admin]
+        createdAt:
+          type: string
+          description: ISO timestamp
+    ReadingList:
+      type: object
+      additionalProperties: false
+      required: [id, userId, name, description, bookIds, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        bookIds:
+          type: array
+          items: { type: string }
+        completedBookIds:
+          type: array
+          items: { type: string }
+        createdAt:
+          type: string
+          description: ISO timestamp
+        updatedAt:
+          type: string
+          description: ISO timestamp
+    CreateReadingListRequest:
+      type: object
+      additionalProperties: false
+      required: [name, description, bookIds]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        bookIds:
+          type: array
+          items: { type: string }
+        completedBookIds:
+          type: array
+          items: { type: string }
+    UpdateReadingListRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        description: { type: string }
+        bookIds:
+          type: array
+          items: { type: string }
+        completedBookIds:
+          type: array
+          items: { type: string }
+    Review:
+      type: object
+      additionalProperties: false
+      required: [id, bookId, userId, rating, comment, createdAt]
+      properties:
+        id: { type: string }
+        bookId: { type: string }
+        userId: { type: string }
+        userName: { type: string }
+        rating: { type: number }
+        comment: { type: string }
+        createdAt:
+          type: string
+          description: ISO timestamp
+    CreateReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [rating, comment]
+      properties:
+        rating:
+          type: number
+          minimum: 0
+          maximum: 5
+        comment:
+          type: string
+    Recommendation:
+      type: object
+      additionalProperties: false
+      required: [title, author, reason, confidence]
+      properties:
+        title: { type: string }
+        author: { type: string }
+        reason: { type: string }
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+    RecommendationsRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query:
+          type: string
+    RecommendationsResponse:
+      type: object
+      additionalProperties: false
+      required: [recommendations]
+      properties:
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+    PaginatedBooks:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Book'
+        nextToken:
+          type: string
+          nullable: true
+    PaginatedReviews:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        nextToken:
+          type: string
+          nullable: true
+
+

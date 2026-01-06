@@ -40,7 +40,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 type PaginatedResult<T> = { items: T[]; nextToken?: string };
 

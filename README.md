@@ -62,7 +62,7 @@ This repo includes a Swagger/OpenAPI specification that documents the API the fr
 - **Local preview (optional)**:
 
 ```bash
-npx --yes @redocly/cli@latest preview-docs openapi.yaml
+npx --yes @redocly/cli@latest preview
 ```
 
 ## 👥 Team Member Contributions
